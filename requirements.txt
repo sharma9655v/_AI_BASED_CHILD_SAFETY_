@@ -1,4 +1,6 @@
 streamlit
+opencv-python-headless
 twilio
 streamlit-geolocation
 python-dotenv
+pandas
