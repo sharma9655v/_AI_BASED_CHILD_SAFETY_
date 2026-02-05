@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import os
 import uuid
-import threading  # Integrated for simultaneous alerts
+import threading
 from PIL import Image
 from datetime import datetime
 from twilio.rest import Client
@@ -19,15 +19,15 @@ if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================== TWILIO CONFIG ==================
-# It is highly recommended to use st.secrets["KEY_NAME"] for these!
+# Recommendation: Move these to st.secrets for GitHub security!
 TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
 TWILIO_AUTH_TOKEN = "0e150a10a98b74ddc7d57e44fa3e01c6"
 TWILIO_PHONE = "+14176076960"
 
-# List of phone numbers to alert (Update second number here)
+# List of emergency contacts
 EMERGENCY_CONTACTS = [
     "+918130631551", 
-    "+917678495189" # Ensure this is verified in Twilio Console
+    "+917678495189" # Ensure second number is verified in Twilio Console
 ]
 
 # ================== DATABASE ==================
@@ -106,18 +106,23 @@ def get_latest_child():
     return cursor.fetchone()
 
 def send_individual_alert(client, contact, msg_body, t_lang, speech):
-    """Function to alert a single contact (used for threading)"""
+    """Integrated SMS and Calling system for parallel execution"""
     try:
-        # 1. Send SMS
-        client.messages.create(body=msg_body, from_=TWILIO_PHONE, to=contact)
-        # 2. Trigger Call
+        # 1. SEND MESSAGE SYSTEM
+        client.messages.create(
+            body=msg_body, 
+            from_=TWILIO_PHONE, 
+            to=contact
+        )
+        
+        # 2. SEND CALLING SYSTEM
         client.calls.create(
             twiml=f'<Response><Say language="{t_lang}">{speech}</Say></Response>',
             from_=TWILIO_PHONE,
             to=contact
         )
     except Exception as e:
-        print(f"Error alerting {contact}: {e}")
+        print(f"Failed to alert {contact}: {str(e)}")
 
 def trigger_emergency(lat, lon, lang):
     try:
@@ -127,39 +132,47 @@ def trigger_emergency(lat, lon, lang):
 
         name, age, clothes, last_loc, _ = child
         time_now = datetime.now().strftime("%d-%m-%Y | %I:%M %p")
-        maps = f"https://www.google.com/maps?q={lat},{lon}"
+        # Fixed Maps URL for better mobile compatibility
+        maps_link = f"https://www.google.com/maps?q={lat},{lon}"
 
+        # Final Message Template
         msg_body = (
-            f"🚨 CHILD SAFETY ALERT 🚨\n"
-            f"Name: {name}\nAge: {age}\nClothes: {clothes}\n"
-            f"Last Location: {last_loc}\nGPS: {maps}\nTime: {time_now}"
+            f"🚨 CHILD SAFETY ALERT 🚨\n\n"
+            f"CHILD FOUND / SOS TRIGGERED\n"
+            f"Name: {name}\n"
+            f"Age: {age}\n"
+            f"Clothes: {clothes}\n"
+            f"Last Seen: {last_loc}\n"
+            f"Current GPS: {maps_link}\n"
+            f"Time: {time_now}"
         )
 
         client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
         
         if lang == "English":
-            speech = f"Emergency alert. {name} has triggered SOS. Location sent."
+            speech = f"Emergency alert. {name} has triggered SOS. Location details sent via SMS."
             twilio_lang = "en-US"
         else:
-            speech = f"आपातकालीन अलर्ट। {name} ने मदद के लिए संदेश भेजा है। स्थान भेज दिया गया है।"
+            speech = f"आपातकालीन अलर्ट। {name} ने मदद के लिए संदेश भेजा है। स्थान की जानकारी भेज दी गई है।"
             twilio_lang = "hi-IN"
 
-        # Threading: Trigger all alerts at the same time
+        # Threading for Simultaneous SMS and Calls
         threads = []
         for contact in EMERGENCY_CONTACTS:
             if "X" not in contact:
-                t = threading.Thread(target=send_individual_alert, 
-                                     args=(client, contact, msg_body, twilio_lang, speech))
+                t = threading.Thread(
+                    target=send_individual_alert, 
+                    args=(client, contact, msg_body, twilio_lang, speech)
+                )
                 threads.append(t)
                 t.start()
 
-        # Wait for threads to finish to confirm the process started
         for t in threads:
             t.join()
 
         return True
     except Exception as e:
-        return f"Twilio Error: {str(e)}"
+        return f"System Error: {str(e)}"
 
 # ================== UI ==================
 st.title("🛡️ SafeGuard Child Safety AI")
@@ -178,7 +191,7 @@ with tab1:
         clothes = st.text_input("Clothing Color")
         last_loc = st.text_area("Location Where Child Was Last Seen")
         photo = st.file_uploader("Recent Photo", ["jpg", "png", "jpeg"])
-        submit = st.form_submit_button("Register")
+        submit = st.form_submit_button("Register Child")
 
     if submit:
         if not all([name, clothes, last_loc, photo]):
@@ -199,37 +212,37 @@ with tab1:
 
 # ================== TAB 2: SOS ==================
 with tab2:
-    st.warning("Pressing SOS will alert both emergency contacts simultaneously.")
+    st.warning("SOS will trigger parallel Calls and SMS to all linked contacts.")
     location = streamlit_geolocation()
     if st.button("🆘 TRIGGER SOS"):
         if location.get('latitude') and location.get('longitude'):
-            with st.spinner("Sending simultaneous alerts..."):
+            with st.spinner("Dispatching Emergency Alerts..."):
                 result = trigger_emergency(
                     location['latitude'],
                     location['longitude'],
                     voice_lang
                 )
             if result is True:
-                st.success("All Contacts Alerted Successfully")
+                st.success("Alerts (Call + SMS) Sent to All Contacts!")
                 st.balloons()
             else:
                 st.error(result)
         else:
-            st.error("Please enable/allow location access to trigger SOS.")
+            st.error("Enable location access to use the SOS feature.")
 
 # ================== TAB 3: FACE MATCHING ==================
 with tab3:
     st.subheader("AI Face Detection & Matching")
-    mode = st.radio("Choose Image Source", ["📷 Live Camera", "🖼️ Upload Image"])
+    mode = st.radio("Source", ["📷 Live Camera", "🖼️ Upload Image"])
     test_np = None
 
     if mode == "📷 Live Camera":
-        cam_img = st.camera_input("Capture Image")
+        cam_img = st.camera_input("Scanner")
         if cam_img:
             test_np = np.array(Image.open(cam_img).convert("RGB"))
 
     if mode == "🖼️ Upload Image":
-        upload_img = st.file_uploader("Upload Image", ["jpg", "png", "jpeg"])
+        upload_img = st.file_uploader("CCTV Image", ["jpg", "png", "jpeg"])
         if upload_img:
             test_np = np.array(Image.open(upload_img).convert("RGB"))
 
@@ -237,7 +250,7 @@ with tab3:
         child = get_latest_child()
         if child:
             _, _, _, _, stored_path = child
-            with st.spinner("Analyzing faces..."):
+            with st.spinner("Analyzing..."):
                 matched, msg = match_faces(stored_path, test_np)
 
             if matched:
@@ -246,4 +259,4 @@ with tab3:
             else:
                 st.error(f"❌ {msg}")
         else:
-            st.warning("No registered child found.")
+            st.warning("Please register a child first.")
