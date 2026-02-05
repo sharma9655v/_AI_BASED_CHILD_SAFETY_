@@ -18,8 +18,8 @@ DB_FILE = "child_safety.db"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================== TWILIO ==================
-TWILIO_SID = "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-TWILIO_AUTH_TOKEN = "xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
+TWILIO_AUTH_TOKEN = "2e662c1d7a64289ba1c947ffa1f95f38"
 TWILIO_PHONE = "+14176076960"
 PARENT_PHONE = "+918130631551"
 
