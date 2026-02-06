@@ -20,9 +20,9 @@ if not os.path.exists(UPLOAD_DIR):
 
 # ================== TWILIO CONFIG ==================
 # Using the credentials provided in your previous snippet
-TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
-TWILIO_AUTH_TOKEN = "0e150a10a98b74ddc7d57e44fa3e01c6"
-TWILIO_PHONE = "+14176076960"
+TWILIO_SID = "ACc9b9941c778de30e2ed7ba57f87cdfbc"
+TWILIO_AUTH_TOKEN = "b524116dc4b14af314a5919594df9121"
+TWILIO_PHONE = "+15075195618"
 
 # Both numbers will receive SMS and Calls simultaneously
 EMERGENCY_CONTACTS = [
