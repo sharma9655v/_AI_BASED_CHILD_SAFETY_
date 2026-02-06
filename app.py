@@ -27,7 +27,7 @@ TWILIO_PHONE = "+14176076960"
 # Both numbers will receive SMS and Calls simultaneously
 EMERGENCY_CONTACTS = [
     "+918130631551", 
-    "+91XXXXXXXXXX" # Ensure you replace this with your actual 2nd verified number
+    "+917678495189" # Ensure you replace this with your actual 2nd verified number
 ]
 
 # ================== DATABASE ==================
