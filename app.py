@@ -19,15 +19,15 @@ if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================== TWILIO CONFIG ==================
-# Recommendation: Move these to st.secrets for GitHub security!
+# Using the credentials provided in your previous snippet
 TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
 TWILIO_AUTH_TOKEN = "0e150a10a98b74ddc7d57e44fa3e01c6"
 TWILIO_PHONE = "+14176076960"
 
-# List of emergency contacts
+# Both numbers will receive SMS and Calls simultaneously
 EMERGENCY_CONTACTS = [
     "+918130631551", 
-    "+917678495189" # Ensure second number is verified in Twilio Console
+    "+91XXXXXXXXXX" # Ensure you replace this with your actual 2nd verified number
 ]
 
 # ================== DATABASE ==================
@@ -105,24 +105,29 @@ def get_latest_child():
     """)
     return cursor.fetchone()
 
-def send_individual_alert(client, contact, msg_body, t_lang, speech):
-    """Integrated SMS and Calling system for parallel execution"""
+def send_individual_alert(contact, msg_body, t_lang, speech):
+    """Refined parallel dispatch for SMS and Calling"""
     try:
-        # 1. SEND MESSAGE SYSTEM
-        client.messages.create(
+        client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
+        
+        # 1. DISPATCH SMS
+        sms = client.messages.create(
             body=msg_body, 
             from_=TWILIO_PHONE, 
             to=contact
         )
+        print(f"SMS sent to {contact}: {sms.sid}")
         
-        # 2. SEND CALLING SYSTEM
-        client.calls.create(
+        # 2. DISPATCH CALL
+        call = client.calls.create(
             twiml=f'<Response><Say language="{t_lang}">{speech}</Say></Response>',
             from_=TWILIO_PHONE,
             to=contact
         )
+        print(f"Call initiated to {contact}: {call.sid}")
+        
     except Exception as e:
-        print(f"Failed to alert {contact}: {str(e)}")
+        print(f"FAILED ALERT for {contact}: {str(e)}")
 
 def trigger_emergency(lat, lon, lang):
     try:
@@ -132,23 +137,19 @@ def trigger_emergency(lat, lon, lang):
 
         name, age, clothes, last_loc, _ = child
         time_now = datetime.now().strftime("%d-%m-%Y | %I:%M %p")
-        # Fixed Maps URL for better mobile compatibility
+        # Standard Maps URL for mobile redirection
         maps_link = f"https://www.google.com/maps?q={lat},{lon}"
 
-        # Final Message Template
         msg_body = (
             f"🚨 CHILD SAFETY ALERT 🚨\n\n"
-            f"CHILD FOUND / SOS TRIGGERED\n"
-            f"Name: {name}\n"
+            f"Child: {name}\n"
             f"Age: {age}\n"
             f"Clothes: {clothes}\n"
             f"Last Seen: {last_loc}\n"
-            f"Current GPS: {maps_link}\n"
+            f"Location: {maps_link}\n"
             f"Time: {time_now}"
         )
 
-        client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
-        
         if lang == "English":
             speech = f"Emergency alert. {name} has triggered SOS. Location details sent via SMS."
             twilio_lang = "en-US"
@@ -156,13 +157,13 @@ def trigger_emergency(lat, lon, lang):
             speech = f"आपातकालीन अलर्ट। {name} ने मदद के लिए संदेश भेजा है। स्थान की जानकारी भेज दी गई है।"
             twilio_lang = "hi-IN"
 
-        # Threading for Simultaneous SMS and Calls
+        # Threaded logic for simultaneous delivery to BOTH numbers
         threads = []
         for contact in EMERGENCY_CONTACTS:
             if "X" not in contact:
                 t = threading.Thread(
                     target=send_individual_alert, 
-                    args=(client, contact, msg_body, twilio_lang, speech)
+                    args=(contact, msg_body, twilio_lang, speech)
                 )
                 threads.append(t)
                 t.start()
