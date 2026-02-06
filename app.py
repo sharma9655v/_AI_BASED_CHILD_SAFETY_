@@ -19,12 +19,12 @@ if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ================== TWILIO CONFIG ==================
-TWILIO_SID = "ACc9b9941c778de30e2ed7ba57f87cdfbc"
-TWILIO_AUTH_TOKEN = "b524116dc4b14af314a5919594df9121"
-TWILIO_PHONE = "+15075195618"
+TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
+TWILIO_AUTH_TOKEN = "0e150a10a98b74ddc7d57e44fa3e01c6"
+TWILIO_PHONE = "+14176076960"
+# Get this from your Twilio WhatsApp Sandbox page
+TWILIO_WHATSAPP_SENDER = "whatsapp:+14155238886" 
 
-# IMPORTANT: Both numbers MUST be verified at:
-# https://console.twilio.com/us1/develop/phone-numbers/manage/verified
 EMERGENCY_CONTACTS = [
     "+918130631551", 
     "+917678495189" 
@@ -80,32 +80,38 @@ def get_latest_child():
     return cursor.fetchone()
 
 def send_individual_alert(contact, msg_body, t_lang, speech, status_list):
-    """Refined dispatch with explicit error logging for SMS"""
+    """Refined dispatch for SMS, Call, and WhatsApp"""
     try:
         client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
         
-        # 1. ATTEMPT SMS
-        sms = client.messages.create(body=msg_body, from_=TWILIO_PHONE, to=contact)
-        status_list.append(f"✅ SMS sent to {contact}")
+        # 1. SEND SMS
+        client.messages.create(body=msg_body, from_=TWILIO_PHONE, to=contact)
         
-        # 2. ATTEMPT CALL
+        # 2. SEND WHATSAPP
+        client.messages.create(
+            body=msg_body,
+            from_=TWILIO_WHATSAPP_SENDER,
+            to=f"whatsapp:{contact}"
+        )
+        
+        # 3. SEND CALL
         client.calls.create(
             twiml=f'<Response><Say language="{t_lang}">{speech}</Say></Response>',
             from_=TWILIO_PHONE, to=contact
         )
-        status_list.append(f"✅ Call sent to {contact}")
+        status_list.append(f"✅ Full Alert (WhatsApp+SMS+Call) sent to {contact}")
         
     except Exception as e:
-        status_list.append(f"❌ Error for {contact}: {str(e)}")
+        status_list.append(f"❌ Alert Failed for {contact}: {str(e)}")
 
 def trigger_emergency(lat, lon, lang):
     child = get_latest_child()
     if not child: return ["No child registered."]
 
     name, age, clothes, last_loc, _ = child
-    maps_link = f"https://www.google.com/maps?q={lat},{lon}" # Improved URL format
+    maps_link = f"http://maps.google.com/maps?q={lat},{lon}"
 
-    msg_body = f"🚨 CHILD SAFETY ALERT 🚨\nName: {name}\nAge: {age}\nClothes: {clothes}\nLoc: {maps_link}"
+    msg_body = f"🚨 CHILD SAFETY SOS 🚨\nName: {name}\nAge: {age}\nClothes: {clothes}\nMap: {maps_link}"
 
     speech = f"Emergency alert. {name} has triggered SOS." if lang == "English" else f"आपातकालीन अलर्ट। {name} ने मदद मांगी है।"
     twilio_lang = "en-US" if lang == "English" else "hi-IN"
@@ -127,41 +133,41 @@ tab1, tab2, tab3 = st.tabs(["👨‍👩‍👧 Parent Registration", "🆘 SOS 
 
 with tab1:
     with st.form("register"):
-        name = st.text_input("Child Name")
-        age = st.number_input("Age", 0, 18)
-        clothes = st.text_input("Clothing Color")
-        last_loc = st.text_area("Last Seen Location")
+        c_name = st.text_input("Child Name")
+        c_age = st.number_input("Age", 0, 18)
+        c_clothes = st.text_input("Clothing Color")
+        c_loc = st.text_area("Last Seen Location")
         photo = st.file_uploader("Recent Photo", ["jpg", "png", "jpeg"])
-        if st.form_submit_button("Register"):
-            if all([name, clothes, last_loc, photo]):
+        if st.form_submit_button("Register Child"):
+            if all([c_name, c_clothes, c_loc, photo]):
                 cid = str(uuid.uuid4())
                 path = os.path.join(UPLOAD_DIR, f"{cid}.jpg")
                 Image.open(photo).convert("RGB").save(path)
-                cursor.execute("INSERT INTO child_registry VALUES (?, ?, ?, ?, ?, ?, ?)", (cid, name, age, clothes, last_loc, path, datetime.now().isoformat()))
+                cursor.execute("INSERT INTO child_registry VALUES (?, ?, ?, ?, ?, ?, ?)", (cid, c_name, c_age, c_clothes, c_loc, path, datetime.now().isoformat()))
                 conn.commit()
-                st.success("Registered!")
-            else: st.error("Fields missing")
+                st.success("Registration Successful!")
+            else: st.error("Please fill all fields")
 
 with tab2:
-    st.sidebar.header("Settings")
+    st.sidebar.header("Alert Settings")
     voice_lang = st.sidebar.radio("Voice Language", ["English", "Hindi"])
+    st.info("WhatsApp alerts require both contacts to join the Twilio Sandbox first.")
     location = streamlit_geolocation()
-    if st.button("🆘 TRIGGER SOS"):
+    if st.button("🆘 TRIGGER MULTI-CHANNEL SOS"):
         if location.get('latitude'):
             results = trigger_emergency(location['latitude'], location['longitude'], voice_lang)
-            for r in results:
-                st.write(r)
+            for r in results: st.write(r)
             st.balloons()
-        else: st.error("Location not found.")
+        else: st.error("GPS Signal required for SOS.")
 
 with tab3:
-    mode = st.radio("Source", ["📷 Live", "🖼️ Upload"])
+    mode = st.radio("Mode", ["📷 Live", "🖼️ Upload"])
     test_img = None
     if mode == "📷 Live":
         cam = st.camera_input("Scanner")
         if cam: test_img = np.array(Image.open(cam))
     else:
-        file = st.file_uploader("CCTV Image", ["jpg", "png", "jpeg"])
+        file = st.file_uploader("CCTV Upload", ["jpg", "png", "jpeg"])
         if file: test_img = np.array(Image.open(file))
 
     if test_img is not None:
