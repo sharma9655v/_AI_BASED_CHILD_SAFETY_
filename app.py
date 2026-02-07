@@ -11,11 +11,11 @@ from streamlit_geolocation import streamlit_geolocation
 # TWILIO CONFIGURATION
 # ==================================================
 
-TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
-TWILIO_AUTH_TOKEN = "0e150a10a98b74ddc7d57e44fa3e01c6"
+TWILIO_SID = "ACc9b9941c778de30e2ed7ba57f87cdfbc"
+TWILIO_AUTH_TOKEN = "2b2cf2200be3a515c496ffd9137d63c4"
 
-TWILIO_PHONE = "+14176076960"                  # Your Twilio SMS/Voice Number
-TWILIO_WHATSAPP_SENDER = "whatsapp:+14155238886"  # Your Twilio WhatsApp Sandbox Number
+TWILIO_PHONE = "+15075195618"                  # Your Twilio SMS/Voice Number
+TWILIO_WHATSAPP_SENDER = "whatsapp:+15075195618"  # Your Twilio WhatsApp Sandbox Number
 
 # List of Contacts (Add both numbers here)
 # NOTE: Ensure both numbers are Verified in Twilio Console if using a Trial Account.
