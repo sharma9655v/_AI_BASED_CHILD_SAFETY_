@@ -14,10 +14,19 @@ TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
 TWILIO_AUTH_TOKEN = "0e150a10a98b74ddc7d57e44fa3e01c6"
 TWILIO_PHONE = "+14176076960"
 
+# 🔹 WHATSAPP ADDITION
+TWILIO_WHATSAPP_SENDER = "whatsapp:+14155238886"  # Twilio WhatsApp Sandbox
+
 # TWO EMERGENCY NUMBERS (BOTH WILL GET SOS)
 EMERGENCY_NUMBERS = [
-    "+918130631551",   # Parent
-    "+917678495189"    # Second guardian / relative / police
+    "+918130631551",
+    "+917678495189"
+]
+
+# 🔹 WHATSAPP ADDITION (formatted numbers)
+EMERGENCY_WHATSAPP_NUMBERS = [
+    "whatsapp:+918130631551",
+    "whatsapp:+917678495189"
 ]
 
 DB_FILE = "child_safety.db"
@@ -105,7 +114,7 @@ def compare_faces(f1, f2):
     return np.mean(cv2.absdiff(f1, f2)) < 60
 
 # ==================================================
-# SOS FUNCTION (ONE ACCOUNT → TWO NUMBERS)
+# SOS FUNCTION (SMS + CALL + WHATSAPP)
 # ==================================================
 
 def send_sos(lat, lon, lang):
@@ -122,16 +131,15 @@ def send_sos(lat, lon, lang):
         else "आपातकालीन अलर्ट। आपके बच्चे ने SOS सिस्टम सक्रिय किया है।"
     )
 
+    # ---------- SMS + CALL (UNCHANGED) ----------
     for number in EMERGENCY_NUMBERS:
         try:
-            # SMS
             client.messages.create(
                 body=message,
                 from_=TWILIO_PHONE,
                 to=number
             )
 
-            # CALL
             client.calls.create(
                 twiml=f"<Response><Say>{speech}</Say></Response>",
                 from_=TWILIO_PHONE,
@@ -141,7 +149,18 @@ def send_sos(lat, lon, lang):
         except Exception as e:
             print("Twilio error:", e)
 
-    # Log SOS
+    # ---------- 🔹 WHATSAPP ADDITION ----------
+    for w_number in EMERGENCY_WHATSAPP_NUMBERS:
+        try:
+            client.messages.create(
+                body=message,
+                from_=TWILIO_WHATSAPP_SENDER,
+                to=w_number
+            )
+        except Exception as e:
+            print("WhatsApp error:", e)
+
+    # ---------- LOG SOS ----------
     conn = sqlite3.connect(DB_FILE)
     conn.execute(
         "INSERT INTO sos_log(latitude, longitude, time) VALUES (?,?,?)",
@@ -244,7 +263,7 @@ with tab3:
     if sos_pressed:
         if location["latitude"]:
             send_sos(location["latitude"], location["longitude"], lang)
-            st.success("🚨 SOS sent to BOTH numbers")
+            st.success("🚨 SOS sent via WhatsApp + SMS + Call")
             st.balloons()
         else:
             st.error("Location permission denied")
