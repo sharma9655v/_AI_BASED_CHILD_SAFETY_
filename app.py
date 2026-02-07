@@ -12,18 +12,17 @@ from streamlit_geolocation import streamlit_geolocation
 
 TWILIO_SID = "ACa12e602647785572ebaf765659d26d23"
 TWILIO_AUTH_TOKEN = "0e150a10a98b74ddc7d57e44fa3e01c6"
-TWILIO_PHONE = "+14176076960"
 
-# 🔹 WhatsApp Sandbox Sender
-TWILIO_WHATSAPP_SENDER = "whatsapp:+14155238886"
+TWILIO_PHONE = "+14176076960"                  # SMS + CALL
+TWILIO_WHATSAPP_SENDER = "whatsapp:+14155238886"  # WhatsApp Sandbox
 
-# TWO EMERGENCY NUMBERS (SMS + CALL)
+# TWO EMERGENCY NUMBERS (CALL + SMS)
 EMERGENCY_NUMBERS = [
     "+918130631551",
     "+917678495189"
 ]
 
-# 🔹 WhatsApp Numbers (must join sandbox)
+# SAME NUMBERS FOR WHATSAPP (Sandbox joined)
 EMERGENCY_WHATSAPP_NUMBERS = [
     "whatsapp:+918130631551",
     "whatsapp:+917678495189"
@@ -114,7 +113,7 @@ def compare_faces(f1, f2):
     return np.mean(cv2.absdiff(f1, f2)) < 60
 
 # ==================================================
-# SOS FUNCTION (SMS + CALL SAFE, WHATSAPP OPTIONAL)
+# SOS FUNCTION (SAFE, REAL-WORLD)
 # ==================================================
 
 def send_sos(lat, lon, lang):
@@ -131,45 +130,49 @@ def send_sos(lat, lon, lang):
         else "आपातकालीन अलर्ट। आपके बच्चे ने SOS सिस्टम सक्रिय किया है।"
     )
 
-    # ==============================
-    # 1️⃣ SMS + CALL (PRIMARY)
-    # ==============================
+    # ==================================================
+    # 1️⃣ VOICE CALL (MOST RELIABLE IN INDIA)
+    # ==================================================
     for number in EMERGENCY_NUMBERS:
         try:
-            # SMS
-            client.messages.create(
-                body=message,
-                from_=TWILIO_PHONE,
-                to=number
-            )
-
-            # CALL
             client.calls.create(
                 twiml=f"<Response><Say>{speech}</Say></Response>",
                 from_=TWILIO_PHONE,
                 to=number
             )
-
         except Exception as e:
-            print(f"SMS/CALL failed for {number}: {e}")
+            print(f"CALL FAILED for {number}: {e}")
 
-    # ==============================
-    # 2️⃣ WHATSAPP (SECONDARY)
-    # ==============================
+    # ==================================================
+    # 2️⃣ WHATSAPP (PRIMARY MESSAGE CHANNEL)
+    # ==================================================
     for w_number in EMERGENCY_WHATSAPP_NUMBERS:
         try:
             client.messages.create(
-                body=message,
                 from_=TWILIO_WHATSAPP_SENDER,
-                to=w_number
+                to=w_number,
+                body=message
             )
         except Exception as e:
-            # WhatsApp failure must NOT stop SOS
-            print(f"WhatsApp failed for {w_number}: {e}")
+            print(f"WHATSAPP FAILED for {w_number}: {e}")
 
-    # ==============================
-    # 3️⃣ LOG SOS
-    # ==============================
+    # ==================================================
+    # 3️⃣ SMS (FEATURE KEPT – MAY FAIL DUE TO INDIA DLT)
+    # ==================================================
+    for number in EMERGENCY_NUMBERS:
+        try:
+            client.messages.create(
+                body=message,
+                from_=TWILIO_PHONE,
+                to=number
+            )
+        except Exception as e:
+            # IMPORTANT: SMS failure must NEVER stop SOS
+            print(f"SMS FAILED for {number}: {e}")
+
+    # ==================================================
+    # 4️⃣ LOG SOS (ALWAYS)
+    # ==================================================
     conn = sqlite3.connect(DB_FILE)
     conn.execute(
         "INSERT INTO sos_log(latitude, longitude, time) VALUES (?,?,?)",
@@ -270,9 +273,9 @@ with tab3:
     st.markdown('</div>', unsafe_allow_html=True)
 
     if sos_pressed:
-        if location["latitude"]:
+        if location.get("latitude"):
             send_sos(location["latitude"], location["longitude"], lang)
-            st.success("🚨 SOS sent (SMS + Call + WhatsApp)")
+            st.success("🚨 SOS sent via WhatsApp + Call (SMS attempted)")
             st.balloons()
         else:
             st.error("Location permission denied")
