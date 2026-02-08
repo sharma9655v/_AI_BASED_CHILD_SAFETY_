@@ -9,20 +9,19 @@ from twilio.rest import Client
 from streamlit_geolocation import streamlit_geolocation
 
 # ==================================================
-# 1. CONFIGURATION (UPDATED WITH YOUR KEYS)
+# 1. CONFIGURATION
 # ==================================================
 
 TWILIO_SID = "ACc9b9941c778de30e2ed7ba57f87cdfbc"
 TWILIO_AUTH_TOKEN = "2b2cf2200be3a515c496ffd9137d63c4"
 
-# Your Twilio Number (Used for SMS & Voice Calls)
+# SMS & Call Number (Your purchased number)
 TWILIO_PHONE_NUMBER = "+15075195618"           
 
-# Twilio Sandbox WhatsApp Number (DO NOT CHANGE THIS)
-# Even though your phone number is 507, the WhatsApp Sandbox is always 415.
+# WhatsApp Sandbox Number (ALWAYS use this for WhatsApp)
 TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886" 
 
-# Emergency Contacts
+# Emergency Contacts (Both will receive WhatsApp + Call)
 EMERGENCY_CONTACTS = [
     "+918130631551", 
     "+917678495189" 
@@ -63,11 +62,10 @@ def init_db():
 init_db()
 
 # ==================================================
-# 3. HELPER FUNCTIONS (Face & Alerts)
+# 3. HELPER FUNCTIONS
 # ==================================================
 
 def extract_face(image):
-    """Detects and crops face from image."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     faces = FACE_CASCADE.detectMultiScale(gray, 1.3, 5)
     if len(faces) == 0: return None
@@ -75,23 +73,20 @@ def extract_face(image):
     return cv2.resize(gray[y:y+h, x:x+w], (200, 200))
 
 def compare_faces(f1, f2):
-    """Simple MSE comparison for face matching."""
     if f1 is None or f2 is None: return False
     err = np.sum((f1.astype("float") - f2.astype("float")) ** 2)
     err /= float(f1.shape[0] * f1.shape[1])
-    return err < 4000  # Lower is stricter
+    return err < 4000 
 
 def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     """
     Sends WhatsApp, SMS, and Call to ONE contact.
-    Uses separate try/except blocks so one failure doesn't stop the others.
     """
     client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
     status_log = {}
 
-    # --- 1. WHATSAPP ---
+    # --- 1. WHATSAPP (Sandbox Number) ---
     try:
-        # Note: 'from_' must match the Sandbox Number (+1415...)
         message = client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER, 
             body=msg_body,
@@ -101,7 +96,7 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     except Exception as e:
         status_log["WhatsApp"] = f"❌ Failed: {str(e)}"
 
-    # --- 2. SMS ---
+    # --- 2. SMS (Your Number) ---
     try:
         message = client.messages.create(
             from_=TWILIO_PHONE_NUMBER,
@@ -112,7 +107,7 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     except Exception as e:
         status_log["SMS"] = f"❌ Failed: {str(e)}"
 
-    # --- 3. VOICE CALL ---
+    # --- 3. VOICE CALL (Your Number) ---
     try:
         call = client.calls.create(
             twiml=f'<Response><Say language="{lang_code}">{speech}</Say></Response>',
@@ -127,15 +122,9 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     log_container[contact] = status_log
 
 def trigger_sos(lat, lon, language_choice):
-    """
-    Main function to trigger simultaneous alerts to ALL contacts.
-    """
-    # 1. Prepare Data
     timestamp = datetime.now().strftime("%d-%m-%Y %I:%M %p")
-    # Universal Google Maps Link (Works on Android/iOS)
     maps_link = f"https://www.google.com/maps?q={lat},{lon}"
     
-    # Get Child Info
     conn = sqlite3.connect(DB_FILE)
     child_data = conn.execute("SELECT name, age, clothing_color FROM child ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
@@ -147,7 +136,6 @@ def trigger_sos(lat, lon, language_choice):
         c_name = "Unknown Child"
         details = "No registered details found."
 
-    # 2. Construct Message
     msg_body = (
         f"🚨 *SOS EMERGENCY* 🚨\n\n"
         f"Child Status: MISSING / DANGER\n"
@@ -156,7 +144,6 @@ def trigger_sos(lat, lon, language_choice):
         f"⏰ *Time:* {timestamp}"
     )
 
-    # 3. Construct Speech
     if language_choice == "English":
         speech = f"Emergency Alert! {c_name} has triggered the SOS. Check WhatsApp for location."
         lang_code = "en-US"
@@ -164,20 +151,18 @@ def trigger_sos(lat, lon, language_choice):
         speech = f"Aapaatkaaleen Alert. {c_name} ne SOS dabaya hai. Location WhatsApp par bheji gayi hai."
         lang_code = "hi-IN"
 
-    # 4. Multi-Threading Loop with logging
     threads = []
-    log_results = {} # To store success/fail logs
+    log_results = {} 
 
+    # LOOP: This ensures BOTH numbers get the alerts
     for contact in EMERGENCY_CONTACTS:
         t = threading.Thread(target=send_alert_thread, args=(contact, msg_body, speech, lang_code, log_results))
         threads.append(t)
         t.start()
 
-    # Wait for all threads to finish
     for t in threads:
         t.join()
 
-    # 5. Log to DB
     conn = sqlite3.connect(DB_FILE)
     conn.execute("INSERT INTO sos_log(latitude, longitude, time, status) VALUES (?,?,?,?)", 
                  (lat, lon, timestamp, "Triggered"))
@@ -191,9 +176,8 @@ def trigger_sos(lat, lon, language_choice):
 # ==================================================
 
 st.title("🛡️ SafeGuard AI")
-st.caption("Integrated Child Safety System with WhatsApp, SMS & Voice SOS")
 
-tab1, tab2, tab3 = st.tabs(["📝 Registration", "🔍 AI Face Match", "🆘 Emergency SOS"])
+tab1, tab2, tab3 = st.tabs(["📝 Register", "🔍 AI Face Match", "🆘 Emergency SOS"])
 
 # --- TAB 1: REGISTRATION ---
 with tab1:
@@ -221,7 +205,7 @@ with tab1:
                     conn.close()
                     st.success(f"✅ Registered {name} successfully!")
                 else:
-                    st.error("❌ No face detected in the photo. Please use a clear image.")
+                    st.error("❌ No face detected.")
             else:
                 st.warning("⚠️ Name and Photo are required.")
 
@@ -230,7 +214,6 @@ with tab2:
     st.header("Search & Verify")
     mode = st.radio("Input Mode", ["Live Camera", "Upload Image"])
     
-    # Fetch registered face
     conn = sqlite3.connect(DB_FILE)
     record = conn.execute("SELECT face_encoding, name FROM child ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
@@ -238,11 +221,8 @@ with tab2:
     target_face = None
     if record:
         target_face = np.frombuffer(record[0], dtype=np.uint8).reshape((200, 200))
-        st.info(f"🔎 Searching for registered child: **{record[1]}**")
-    else:
-        st.warning("No child registered yet.")
+        st.info(f"🔎 Searching for: **{record[1]}**")
 
-    # Input handling
     input_img = None
     if mode == "Live Camera":
         cam = st.camera_input("Scan Face")
@@ -251,7 +231,6 @@ with tab2:
         upl = st.file_uploader("Upload Image to Check", type=["jpg", "png"])
         if upl: input_img = cv2.imdecode(np.frombuffer(upl.read(), np.uint8), cv2.IMREAD_COLOR)
 
-    # Matching Logic
     if input_img is not None and target_face is not None:
         curr_face = extract_face(input_img)
         if curr_face is not None:
@@ -262,11 +241,11 @@ with tab2:
             else:
                 st.error("❌ **NO MATCH FOUND.**")
         else:
-            st.warning("⚠️ No face detected in input image.")
+            st.warning("⚠️ No face detected.")
 
 # --- TAB 3: SOS SYSTEM ---
 with tab3:
-    st.header("🚨 Emergency Broadcast System")
+    st.header("Emergency Broadcast System")
     st.markdown("""
     **Triggering SOS will:**
     1. Send **WhatsApp** Location & Details to 2 Contacts.
@@ -278,40 +257,30 @@ with tab3:
     with col1:
         sos_lang = st.selectbox("Voice Alert Language", ["English", "Hindi"])
     
-    # Custom SOS Button Styling
     st.markdown("""
     <style>
     div.stButton > button:first-child {
-        background-color: #d32f2f;
-        color: white;
-        height: 120px;
-        width: 100%;
-        font-size: 30px;
-        border-radius: 15px;
-        font-weight: bold;
+        background-color: #d32f2f; color: white; height: 120px; width: 100%;
+        font-size: 30px; border-radius: 15px; font-weight: bold;
     }
     div.stButton > button:first-child:hover {
-        background-color: #b71c1c;
-        border: 2px solid white;
+        background-color: #b71c1c; border: 2px solid white;
     }
     </style>
     """, unsafe_allow_html=True)
     
     location = streamlit_geolocation()
     
-    st.write("") # Gap
+    st.write("") 
     if st.button("🆘 ACTIVATE SOS"):
         if location.get("latitude"):
-            with st.spinner("Broadcasting Alerts to Network..."):
-                # Trigger and capture logs
+            with st.spinner("Dispatching Alerts..."):
                 logs = trigger_sos(location["latitude"], location["longitude"], sos_lang)
-                time.sleep(1) # Visual pause
+                time.sleep(1) 
             
-            st.success("✅ SOS Triggered! Check the Delivery Report below:")
-            
-            # SHOW EXACTLY WHAT HAPPENED
+            st.success("✅ SOS Triggered!")
             st.write("### 📊 Delivery Report (Debug Log)")
             st.json(logs)
             st.balloons()
         else:
-            st.error("⚠️ GPS Location not found. Please allow location access in your browser.")
+            st.error("⚠️ GPS Location not found.")
