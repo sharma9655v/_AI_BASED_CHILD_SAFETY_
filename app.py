@@ -15,13 +15,13 @@ from streamlit_geolocation import streamlit_geolocation
 TWILIO_SID = "ACc9b9941c778de30e2ed7ba57f87cdfbc"
 TWILIO_AUTH_TOKEN = "2b2cf2200be3a515c496ffd9137d63c4"
 
-# SMS & Call Number (Your purchased number)
+# YOUR Twilio Phone Number (For SMS & Calls)
 TWILIO_PHONE_NUMBER = "+15075195618"           
 
-# WhatsApp Sandbox Number (ALWAYS use this for WhatsApp)
+# TWILIO SANDBOX Number (ALWAYS use this for WhatsApp)
 TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886" 
 
-# Emergency Contacts (Both will receive WhatsApp + Call)
+# LIST OF RECEIVERS (Both must join the sandbox!)
 EMERGENCY_CONTACTS = [
     "+918130631551", 
     "+917678495189" 
@@ -85,7 +85,7 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
     status_log = {}
 
-    # --- 1. WHATSAPP (Sandbox Number) ---
+    # --- 1. WHATSAPP ---
     try:
         message = client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER, 
@@ -94,9 +94,10 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
         )
         status_log["WhatsApp"] = "✅ Sent"
     except Exception as e:
-        status_log["WhatsApp"] = f"❌ Failed: {str(e)}"
+        # Error 63016 means the user didn't join the sandbox
+        status_log["WhatsApp"] = f"❌ Failed (Did they join?): {e}"
 
-    # --- 2. SMS (Your Number) ---
+    # --- 2. SMS ---
     try:
         message = client.messages.create(
             from_=TWILIO_PHONE_NUMBER,
@@ -105,9 +106,9 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
         )
         status_log["SMS"] = "✅ Sent"
     except Exception as e:
-        status_log["SMS"] = f"❌ Failed: {str(e)}"
+        status_log["SMS"] = f"❌ Failed: {e}"
 
-    # --- 3. VOICE CALL (Your Number) ---
+    # --- 3. VOICE CALL ---
     try:
         call = client.calls.create(
             twiml=f'<Response><Say language="{lang_code}">{speech}</Say></Response>',
@@ -116,7 +117,7 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
         )
         status_log["Call"] = "✅ Initiated"
     except Exception as e:
-        status_log["Call"] = f"❌ Failed: {str(e)}"
+        status_log["Call"] = f"❌ Failed: {e}"
     
     # Store log for UI display
     log_container[contact] = status_log
@@ -154,7 +155,7 @@ def trigger_sos(lat, lon, language_choice):
     threads = []
     log_results = {} 
 
-    # LOOP: This ensures BOTH numbers get the alerts
+    # LOOP: THIS ENSURES IT SENDS TO BOTH NUMBERS
     for contact in EMERGENCY_CONTACTS:
         t = threading.Thread(target=send_alert_thread, args=(contact, msg_body, speech, lang_code, log_results))
         threads.append(t)
@@ -174,6 +175,18 @@ def trigger_sos(lat, lon, language_choice):
 # ==================================================
 # 4. STREAMLIT UI
 # ==================================================
+
+# SIDEBAR INSTRUCTIONS
+with st.sidebar:
+    st.header("⚙️ System Status")
+    st.info(f"Contacts Loaded: {len(EMERGENCY_CONTACTS)}")
+    st.markdown("---")
+    st.error("**IMPORTANT:**")
+    st.markdown("""
+    To receive WhatsApp alerts, **BOTH** numbers must join the Sandbox:
+    1. Save `+14155238886` as "SafeGuard Bot".
+    2. Send `join <your-keyword>` from **BOTH** phones.
+    """)
 
 st.title("🛡️ SafeGuard AI")
 
