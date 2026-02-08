@@ -9,17 +9,18 @@ from twilio.rest import Client
 from streamlit_geolocation import streamlit_geolocation
 
 # ==================================================
-# 1. CONFIGURATION (User Provided Credentials)
+# 1. CONFIGURATION (UPDATED WITH YOUR KEYS)
 # ==================================================
 
 TWILIO_SID = "ACc9b9941c778de30e2ed7ba57f87cdfbc"
 TWILIO_AUTH_TOKEN = "2b2cf2200be3a515c496ffd9137d63c4"
 
-# Your Twilio Phone Numbers
-# NOTE: Double check your Twilio Console. 
-# If WhatsApp fails, the Sandbox number is often +14155238886, not your personal number.
+# Your Twilio Number (Used for SMS & Voice Calls)
 TWILIO_PHONE_NUMBER = "+15075195618"           
-TWILIO_WHATSAPP_NUMBER = "whatsapp:+15075195618" 
+
+# Twilio Sandbox WhatsApp Number (DO NOT CHANGE THIS)
+# Even though your phone number is 507, the WhatsApp Sandbox is always 415.
+TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886" 
 
 # Emergency Contacts
 EMERGENCY_CONTACTS = [
@@ -88,10 +89,11 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
     status_log = {}
 
-    # --- 1. WHATSAPP (Rich Text) ---
+    # --- 1. WHATSAPP ---
     try:
+        # Note: 'from_' must match the Sandbox Number (+1415...)
         message = client.messages.create(
-            from_=TWILIO_WHATSAPP_NUMBER,
+            from_=TWILIO_WHATSAPP_NUMBER, 
             body=msg_body,
             to=f"whatsapp:{contact}"
         )
@@ -99,7 +101,7 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     except Exception as e:
         status_log["WhatsApp"] = f"❌ Failed: {str(e)}"
 
-    # --- 2. SMS (Text Backup) ---
+    # --- 2. SMS ---
     try:
         message = client.messages.create(
             from_=TWILIO_PHONE_NUMBER,
@@ -110,7 +112,7 @@ def send_alert_thread(contact, msg_body, speech, lang_code, log_container):
     except Exception as e:
         status_log["SMS"] = f"❌ Failed: {str(e)}"
 
-    # --- 3. VOICE CALL (Wake up call) ---
+    # --- 3. VOICE CALL ---
     try:
         call = client.calls.create(
             twiml=f'<Response><Say language="{lang_code}">{speech}</Say></Response>',
