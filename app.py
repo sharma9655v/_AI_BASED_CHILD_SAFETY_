@@ -13,7 +13,7 @@ from streamlit_geolocation import streamlit_geolocation
 # ==================================================
 
 TWILIO_SID = "ACc9b9941c778de30e2ed7ba57f87cdfbc"
-TWILIO_AUTH_TOKEN = "2b2cf2200be3a515c496ffd9137d63c4"
+TWILIO_AUTH_TOKEN = "95efee72b39ccba07acecf229952ba34"
 
 # YOUR Twilio Phone Number (For SMS & Calls)
 TWILIO_PHONE_NUMBER = "+15075195618"           

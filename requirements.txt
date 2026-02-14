@@ -1,6 +1,17 @@
 streamlit
+numpy
 opencv-python-headless
-twilio
+pillow
+
+# Supabase (PostgreSQL + Storage)
+supabase
+
+# Location access
 streamlit-geolocation
-python-dotenv
-pandas
+
+# Messaging & calls
+twilio
+
+# Database helpers (needed by some environments)
+pymongo
+dnspython
